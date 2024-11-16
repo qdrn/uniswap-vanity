@@ -127,6 +127,49 @@ impl Config {
     }
 }
 
+pub fn score(address: &Address) -> usize {
+    // count total and leading zero bytes
+    let mut number_of_fours = 0;
+    let mut leading_zeros = 21;
+    let mut leading_fours = 21;
+    let mut starts_with_four_fours = 0;
+    let mut fith_not_a_four = 0;
+    let mut end_with_four_fours = 1;
+    for (i, &b) in address.iter().enumerate() {
+        if b != 0 && leading_zeros == 21 {
+            // set leading on finding non-zero byte
+            leading_zeros = i;
+        }
+        if b != 4 && leading_fours == 21 {
+            // set leading on finding non-zero byte
+            leading_fours = i;
+        }
+        if b == 0 {
+            number_of_fours += 1;
+        }
+        if i >= 16 && b != 4 {
+            end_with_four_fours = 0;
+        }
+    }
+
+    if leading_fours >= 4 {
+        starts_with_four_fours = 1;
+    }
+    if address[4] != 4 {
+        fith_not_a_four = 1;
+    }
+
+    let score = 10 * leading_zeros
+        + (40 + 20 * fith_not_a_four) * starts_with_four_fours
+        + 20 * end_with_four_fours
+        + number_of_fours;
+
+    if score >= 10 {
+        println!("score {}", score);
+    }
+    return score;
+}
+
 /// Given a Config object with a factory address, a caller address, and a
 /// keccak-256 hash of the contract initialization code, search for salts that
 /// will enable the factory contract to deploy a contract to a gas-efficient
@@ -146,7 +189,7 @@ pub fn cpu(config: Config) -> Result<(), Box<dyn Error>> {
     let file = output_file();
 
     // create object for computing rewards (relative rarity) for a given address
-    let rewards = Reward::new();
+    // let rewards = Reward::new();
 
     // begin searching for addresses
     loop {
@@ -184,29 +227,31 @@ pub fn cpu(config: Config) -> Result<(), Box<dyn Error>> {
                 // get the address that results from the hash
                 let address = <&Address>::try_from(&res[12..]).unwrap();
 
-                // count total and leading zero bytes
-                let mut total = 0;
-                let mut leading = 21;
-                for (i, &b) in address.iter().enumerate() {
-                    if b == 0 {
-                        total += 1;
-                    } else if leading == 21 {
-                        // set leading on finding non-zero byte
-                        leading = i;
-                    }
-                }
+                // // count total and leading zero bytes
+                // let mut total = 0;
+                // let mut leading = 21;
+                // for (i, &b) in address.iter().enumerate() {
+                //     if b == 0 {
+                //         total += 1;
+                //     } else if leading == 21 {
+                //         // set leading on finding non-zero byte
+                //         leading = i;
+                //     }
+                // }
 
-                // only proceed if there are at least three zero bytes
-                if total < 3 {
-                    return;
-                }
+                // // only proceed if there are at least three zero bytes
+                // if total < 3 {
+                //     return;
+                // }
 
-                // look up the reward amount
-                let key = leading * 20 + total;
-                let reward_amount = rewards.get(&key);
+                // // look up the reward amount
+                // let key = leading * 20 + total;
+                // let reward_amount = rewards.get(&key);
+
+                let reward_amount = score(address);
 
                 // only proceed if an efficient address has been found
-                if reward_amount.is_none() {
+                if reward_amount == 0 {
                     return;
                 }
 
@@ -218,7 +263,7 @@ pub fn cpu(config: Config) -> Result<(), Box<dyn Error>> {
                 // display the salt and the address.
                 let output = format!(
                     "{full_salt} => {address} => {}",
-                    reward_amount.unwrap_or("0")
+                    reward_amount
                 );
                 println!("{output}");
 
