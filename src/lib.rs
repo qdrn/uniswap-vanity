@@ -130,43 +130,72 @@ impl Config {
 pub fn score(address: &Address) -> usize {
     // count total and leading zero bytes
     let mut number_of_fours = 0;
-    let mut leading_zeros = 21;
-    let mut leading_fours = 21;
+    let mut leading_zeros = 42;
+    let mut leading_fours = 42;
     let mut starts_with_four_fours = 0;
     let mut fith_not_a_four = 0;
     let mut end_with_four_fours = 1;
-    for (i, &b) in address.iter().enumerate() {
-        if b != 0 && leading_zeros == 21 {
-            // set leading on finding non-zero byte
-            leading_zeros = i;
+
+    for (i, &byte) in address.iter().enumerate() {
+        // Process high nibble
+        let high_nibble = (byte >> 4) & 0xF;
+        let nibble_pos = i * 2;
+
+        if high_nibble != 0 && leading_zeros == 42 {
+            if high_nibble != 4 {
+                return 0;
+            }
+            leading_zeros = nibble_pos;
         }
-        if b != 4 && leading_fours == 21 {
-            // set leading on finding non-zero byte
-            leading_fours = i;
+        if high_nibble != 4 && leading_fours == 42 && leading_zeros != 42{
+            leading_fours = nibble_pos - leading_zeros;
         }
-        if b == 0 {
+        if high_nibble == 4 {
             number_of_fours += 1;
         }
-        if i >= 16 && b != 4 {
+        if nibble_pos >= 36 && high_nibble != 4 {  // 32 nibbles = 16 bytes
+            end_with_four_fours = 0;
+        }
+
+        // Process low nibble
+        let low_nibble = byte & 0xF;
+        let nibble_pos = i * 2 + 1;
+
+        if low_nibble != 0 && leading_zeros == 42 {
+            if low_nibble != 4 {
+                return 0;
+            }
+            leading_zeros = nibble_pos;
+        }
+        if low_nibble != 4 && leading_fours == 42 && leading_zeros != 42{
+            leading_fours = nibble_pos - leading_zeros;
+        }
+        if low_nibble == 4 {
+            number_of_fours += 1;
+        }
+        if nibble_pos >= 36 && low_nibble != 4 {  // 32 nibbles = 16 bytes
             end_with_four_fours = 0;
         }
     }
 
     if leading_fours >= 4 {
         starts_with_four_fours = 1;
+        if leading_fours == 4 {
+            fith_not_a_four = 1;
+        }
     }
-    if address[4] != 4 {
-        fith_not_a_four = 1;
-    }
+
+    // println!("leadin_zeros {}", leading_zeros);
+    // println!("fith_not_a_four {}", fith_not_a_four);
+    // println!("starts_with_four_fours {}", starts_with_four_fours);
+    // println!("end_with_four_fours {}", end_with_four_fours);
+    // println!("number_of_fours {}", number_of_fours);
 
     let score = 10 * leading_zeros
         + (40 + 20 * fith_not_a_four) * starts_with_four_fours
         + 20 * end_with_four_fours
         + number_of_fours;
 
-    if score >= 10 {
-        println!("score {}", score);
-    }
     return score;
 }
 
@@ -251,7 +280,7 @@ pub fn cpu(config: Config) -> Result<(), Box<dyn Error>> {
                 let reward_amount = score(address);
 
                 // only proceed if an efficient address has been found
-                if reward_amount == 0 {
+                if reward_amount < 100 {
                     return;
                 }
 
@@ -310,8 +339,8 @@ pub fn gpu(config: Config) -> ocl::Result<()> {
     // (create if necessary) and open a file where found salts will be written
     let file = output_file();
 
-    // create object for computing rewards (relative rarity) for a given address
-    let rewards = Reward::new();
+    // // create object for computing rewards (relative rarity) for a given address
+    // let rewards = Reward::new();
 
     // track how many addresses have been found and information about them
     let mut found: u64 = 0;
@@ -552,38 +581,42 @@ pub fn gpu(config: Config) -> ocl::Result<()> {
             // get the address that results from the hash
             let address = <&Address>::try_from(&res[12..]).unwrap();
 
-            // count total and leading zero bytes
-            let mut total = 0;
-            let mut leading = 0;
-            for (i, &b) in address.iter().enumerate() {
-                if b == 0 {
-                    total += 1;
-                } else if leading == 0 {
-                    // set leading on finding non-zero byte
-                    leading = i;
-                }
+            // // count total and leading zero bytes
+            // let mut total = 0;
+            // let mut leading = 0;
+            // for (i, &b) in address.iter().enumerate() {
+            //     if b == 0 {
+            //         total += 1;
+            //     } else if leading == 0 {
+            //         // set leading on finding non-zero byte
+            //         leading = i;
+            //     }
+            // }
+
+            // let key = leading * 20 + total;
+            // let reward = rewards.get(&key).unwrap_or("0");
+
+            let reward = score(address);
+            if reward > 100 {
+                let output = format!(
+                    "0x{}{}{} => {} => {}",
+                    hex::encode(config.calling_address),
+                    hex::encode(salt),
+                    hex::encode(solution),
+                    address,
+                    reward,
+                );
+
+                let show = format!("{output}");
+                found_list.push(show.to_string());
+
+                file.lock_exclusive().expect("Couldn't lock file.");
+
+                writeln!(&file, "{output}").expect("Couldn't write to `efficient_addresses.txt` file.");
+
+                file.unlock().expect("Couldn't unlock file.");
+                found += 1;
             }
-
-            let key = leading * 20 + total;
-            let reward = rewards.get(&key).unwrap_or("0");
-            let output = format!(
-                "0x{}{}{} => {} => {}",
-                hex::encode(config.calling_address),
-                hex::encode(salt),
-                hex::encode(solution),
-                address,
-                reward,
-            );
-
-            let show = format!("{output} ({leading} / {total})");
-            found_list.push(show.to_string());
-
-            file.lock_exclusive().expect("Couldn't lock file.");
-
-            writeln!(&file, "{output}").expect("Couldn't write to `efficient_addresses.txt` file.");
-
-            file.unlock().expect("Couldn't unlock file.");
-            found += 1;
         }
     }
 }
@@ -618,4 +651,33 @@ fn mk_kernel_src(config: &Config) -> String {
     src.push_str(KERNEL_SRC);
 
     src
+}
+
+// 0x34e3e542edb4f7f4a0b41912961a7b46c972a2b44b7e02f3d5ce800041180030 => 0x0404040474d6533fF79CFd9021f0F1260263bd7e => 60
+#[cfg(test)]
+mod tests {
+    use alloy_primitives::address;
+
+    use super::*;
+
+    #[test]
+    fn scoring_1() {
+        let small_score = score(&address!("0404040474d6533fF79CFd9021f0F1260263bd7e"));
+        println!("{}", small_score);
+        assert_eq!(small_score, 15);
+    }
+
+    #[test]
+    fn best_scoring() {
+        let small_score = score(&address!("00000000044442D64A0BE733A5f2a3187BFA8234"));
+        println!("{}", small_score);
+        assert_eq!(small_score, 156);
+    }
+
+    #[test]
+    fn scoring_2() {
+        let small_score = score(&address!("00004444905c5918E1a6Ca344aD53edD426b60D0"));
+        println!("{}", small_score);
+        assert_eq!(small_score, 107);
+    }
 }
