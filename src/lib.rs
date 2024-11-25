@@ -597,7 +597,7 @@ pub fn gpu(config: Config) -> ocl::Result<()> {
             // let reward = rewards.get(&key).unwrap_or("0");
 
             let reward = score(address);
-            if reward > 100 {
+            if reward > 80 {
                 let output = format!(
                     "0x{}{}{} => {} => {}",
                     hex::encode(config.calling_address),
