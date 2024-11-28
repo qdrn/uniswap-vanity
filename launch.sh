@@ -27,13 +27,7 @@ done
 
 apt install bc -y;
 
-export N_CPUS_DIV_10=$(printf "%.0f" $(echo "$(nproc) / 10" | bc -l))
-# Loop to create screen sessions
-for ((i=0; i<N_CPUS_DIV_10; i++)); do
-  session_name="run-cpu$i"
+# Crunch cpu
+nohup cargo run --release $FACTORY $CALLER $INIT_CODE_HASH >> run-cpu.log 2>&1 &
 
-  # Crunch
-  nohup cargo run --release $FACTORY $CALLER $INIT_CODE_HASH >> $session_name.log 2>&1 &
-
-  echo "Session '$session_name', crunching"
-done
+echo "Session cpu, crunching"
