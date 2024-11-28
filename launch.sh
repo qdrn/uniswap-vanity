@@ -29,7 +29,7 @@ apt install bc -y;
 
 export N_CPUS_DIV_6=$(printf "%.0f" $(echo "$(nproc) / 6" | bc -l))
 # Loop to create screen sessions
-for ((i=0; i<N_CPUS_DIV_10; i++)); do
+for ((i=0; i<N_CPUS_DIV_6; i++)); do
   session_name="run-cpu$i"
 
   # Crunch
