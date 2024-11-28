@@ -680,4 +680,11 @@ mod tests {
         println!("{}", small_score);
         assert_eq!(small_score, 107);
     }
+
+    #[test]
+    fn scoring_3() {
+        let small_score = score(&address!("00000004444Dc6335C3721F0dc7cF4340d344444"));
+        println!("{}", small_score);
+        assert_eq!(small_score, 161);
+    }
 }

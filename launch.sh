@@ -20,10 +20,20 @@ for ((i=0; i<num_sessions; i++)); do
   session_name="run$i"
 
   # Crunch
-  #   CALLER="0x34E3e542eDB4f7f4A0b41912961a7b46c972a2B4"
-  #   FACTORY="0x48E516B34A1274f49457b9C6182097796D0498Cb"
-  #   INIT_CODE_HASH="0x94d114296a5af85c1fd2dc039cdaa32f1ed4b0fe0868f02d888bfc91feb645d9"
   nohup cargo run --release $FACTORY $CALLER $INIT_CODE_HASH $i 4 15 >> $session_name.log 2>&1 &
 
-  echo "Tmux session '$session_name', crunching"
+  echo "Session '$session_name', crunching"
+done
+
+apt install bc -y;
+
+export N_CPUS_DIV_6=$(printf "%.0f" $(echo "$(nproc) / 6" | bc -l))
+# Loop to create screen sessions
+for ((i=0; i<N_CPUS_DIV_10; i++)); do
+  session_name="run-cpu$i"
+
+  # Crunch
+  nohup cargo run --release $FACTORY $CALLER $INIT_CODE_HASH >> $session_name.log 2>&1 &
+
+  echo "Session '$session_name', crunching"
 done
